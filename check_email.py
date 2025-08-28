@@ -3,106 +3,53 @@ import email
 from datetime import datetime
 import os
 import requests
+import re
 
 # === Переменные из секретов ===
 EMAIL = os.getenv("EMAIL")
 PASSWORD = os.getenv("MAIL_PASSWORD")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+ALLOWED_SENDER = os.getenv("SENDER_EMAIL")  # Только от этого отправителя
 
 IMAP_SERVER = "imap.mail.ru"
 IMAP_PORT = 993
 
 
-def get_body(msg):
-    if msg.is_multipart():
-        for part in msg.walk():
-            content_type = part.get_content_type()
-            content_disposition = str(part.get("Content-Disposition"))
+def extract_youtrack_link(body):
+    """
+    Ищет вторую ссылку, начинающуюся с https://youtrack.logema.org/
+    Возвращает (текст_ссылки, ссылка)
+    """
+    # Найдём все ссылки вида: <a href="URL">Текст</a>
+    pattern = r'<a[^>]+href="([^"]+)"[^>]*>([^<]+)</a>'
+    matches = re.findall(pattern, body, re.IGNORECASE)
 
-            if "attachment" not in content_disposition and "text/plain" in content_type:
-                body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
-                return body[:2000]
+    # Фильтруем только те, что начинаются с нужного URL
+    youtrack_links = [m for m in matches if m[0].startswith("https://youtrack.logema.org/")]
+
+    if len(youtrack_links) >= 2:
+        link_info = youtrack_links[1]  # Вторая ссылка
+        return link_info[1].strip(), link_info[0]  # (текст, URL)
+    elif len(youtrack_links) == 1:
+        return youtrack_links[0][1].strip(), youtrack_links[0][0]
     else:
-        body = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
-        return body[:2000]
-    return "(нет текста)"
+        return None, None
+
 
 def send_to_telegram(text):
-    print("🟩 Функция send_to_telegram вызвана!")  # 🔥 ЭТО ДОЛЖНО БЫТЬ В ЛОГЕ!
-    print(f"🔧 Начинаем отправку в Telegram...")
-
-    if not TELEGRAM_BOT_TOKEN:
-        print("❌ ОШИБКА: TELEGRAM_BOT_TOKEN пустой!")
-        return
-    # ...
-
-    if not TELEGRAM_BOT_TOKEN:
-        print("❌ ОШИБКА: TELEGRAM_BOT_TOKEN пустой!")
-        return
-    if not TELEGRAM_CHAT_ID:
-        print("❌ ОШИБКА: TELEGRAM_CHAT_ID пустой!")
-        return
-
-    # Экранируем текст для URL
-    import urllib.parse
-    encoded_text = urllib.parse.quote_plus(text)
-
-    # Формируем URL
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={encoded_text}&disable_web_page_preview=true"
-
-    print(f"🔧 Отправляем GET-запрос: {url}")
-
-    try:
-        response = requests.get(url, timeout=15)
-        print(f"📨 Статус: {response.status_code}")
-        print(f"📨 Ответ: {response.text}")
-        if response.status_code == 200 and response.json().get("ok"):
-            print("✅ Успешно отправлено в Telegram!")
-        else:
-            print("❌ Ошибка отправки")
-    except Exception as e:
-        print(f"❌ Ошибка: {e}")
-
-def send_to_telegram1(text):
-    print(f"🔧 Начинаем отправку в Telegram...")
-    print(f"🔧 Текст сообщения: {text[:100]}...")  # первые 100 символов
-
-    # Проверяем переменные
-    if not TELEGRAM_BOT_TOKEN:
-        print("❌ ОШИБКА: TELEGRAM_BOT_TOKEN пустой!")
-        return
-    else:
-        print(f"✅ TELEGRAM_BOT_TOKEN: присутствует (длина {len(TELEGRAM_BOT_TOKEN)})")
-
-    if not TELEGRAM_CHAT_ID:
-        print("❌ ОШИБКА: TELEGRAM_CHAT_ID пустой!")
-        return
-    else:
-        print(f"✅ TELEGRAM_CHAT_ID: {TELEGRAM_CHAT_ID}")
-
+    print(f"🔧 Отправляем в Telegram: {text[:50]}...")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
-    print(f"🔧 Отправляем POST-запрос: {url}")
-    
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,
-        # "parse_mode": "HTML",
-        "disable_web_page_preview": True
+        "disable_web_page_preview": False  # Пусть ссылка отображается красиво
     }
-    print(f"🔧 Payload: {payload}")
-
     try:
         response = requests.post(url, json=payload, timeout=15)
-        print(f"📨 Статус ответа: {response.status_code}")
-        print(f"📨 Ответ Telegram: {response.text}")
-
-        if response.status_code == 200:
-            print("✅ УСПЕХ: Сообщение отправлено в Telegram!")
-        else:
-            print("❌ ОШИБКА: Не удалось отправить сообщение.")
+        print(f"📨 Статус: {response.status_code}, ответ: {response.text}")
     except Exception as e:
-        print(f"❌ ФАТАЛЬНАЯ ОШИБКА при отправке: {type(e).__name__}: {e}")
+        print(f"❌ Ошибка отправки: {e}")
 
 
 def mark_as_read(mail, email_id):
@@ -110,94 +57,101 @@ def mark_as_read(mail, email_id):
         mail.store(email_id, '+FLAGS', '\\Seen')
         print(f"✅ Письмо {email_id.decode()} отмечено как прочитанное")
     except Exception as e:
-        print(f"❌ Не удалось отметить как прочитанное: {e}")
+        print(f"❌ Ошибка при отметке: {e}")
 
 
 def decode_header(header):
-    decoded_fragments = email.header.decode_header(header)
+    decoded_parts = email.header.decode_header(header)
     result = ""
-    for fragment, charset in decoded_fragments:
-        if isinstance(fragment, bytes):
-            result += fragment.decode(charset or "utf-8", errors="ignore")
+    for part, charset in decoded_parts:
+        if isinstance(part, bytes):
+            result += part.decode(charset or "utf-8", errors="ignore")
         else:
-            result += fragment
+            result += part
     return result
 
 
 def check_new_emails():
-    print(f"[{datetime.now()}] 🔎 Подключение к почте: {EMAIL}")
-
-
-    
+    print(f"[{datetime.now()}] 🔎 Проверка почты: {EMAIL}")
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
         mail.login(EMAIL, PASSWORD)
-        print("✅ Успешный вход в почту")
-        
-        status, _ = mail.select("INBOX")
-        if status != "OK":
-            print("❌ Не удалось открыть INBOX")
-            return
+        print("✅ Вход выполнен")
 
-        # Покажем общее количество писем
-        status, total = mail.search(None, "ALL")
-        print(f"📬 Всего писем в INBOX: {len(total[0].split()) if total[0] else 0}")
-
-        # Ищем непрочитанные
-        status, messages = mail.search(None, "UNSEEN")
+        mail.select("INBOX")
+        _, messages = mail.search(None, "UNSEEN")
         email_ids = messages[0].split() if messages[0] else []
 
         if not email_ids:
-            print("📭 Нет непрочитанных писем")
-        else:
-            print(f"✅ Найдено {len(email_ids)} непрочитанных писем. Обрабатываю...")
+            print("📭 Нет новых писем")
+            return
 
-            for email_id in email_ids:
-                try:
-                    _, msg_data = mail.fetch(email_id, '(RFC822)')
-                    raw = msg_data[0][1]
-                    msg = email.message_from_bytes(raw)
+        print(f"✅ Найдено {len(email_ids)} непрочитанных писем")
 
-                    subject = decode_header(msg["Subject"]) if msg["Subject"] else "Без темы"
-                    sender = msg["From"]
+        for email_id in email_ids:
+            try:
+                _, msg_data = mail.fetch(email_id, '(RFC822)')
+                raw = msg_data[0][1]
+                msg = email.message_from_bytes(raw)
 
-                    body = get_body(msg)
+                # Проверяем отправителя
+                sender = msg.get("From", "")
+                if ALLOWED_SENDER not in sender:
+                    print(f"📧 Пропуск письма от: {sender} (не из списка разрешённых)")
+                    continue
 
-                    text = f"""
-📬 <b>Новое письмо</b>
-📧 От: {sender}
-📌 Тема: {subject}
-📄 Текст:
-{body}
-                    """.strip()
+                # Декодируем тему
+                subject = decode_header(msg["Subject"]) if msg["Subject"] else "Без темы"
 
-                    send_to_telegram1(text)
+                # Получаем тело письма
+                body = ""
+                if msg.is_multipart():
+                    for part in msg.walk():
+                        if part.get_content_type() == "text/html":
+                            body = part.get_payload(decode=True).decode("utf-8", errors="ignore")
+                            break
+                else:
+                    if msg.get_content_type() == "text/html":
+                        body = msg.get_payload(decode=True).decode("utf-8", errors="ignore")
+
+                if not body:
+                    print("⚠️ Тело письма пустое")
                     mark_as_read(mail, email_id)
+                    continue
 
-                except Exception as e:
-                    print(f"❌ Ошибка обработки письма {email_id}: {e}")
+                # Ищем вторую ссылку на youtrack.logema.org
+                link_text, link_url = extract_youtrack_link(body)
 
-        mail.close()
+                if not link_url:
+                    print("❌ Ссылка на YouTrack не найдена")
+                    mark_as_read(mail, email_id)
+                    continue
+
+                # Формируем сообщение
+                telegram_text = f"""
+📬 <b>Новое уведомление из YouTrack</b>
+📌 <b>Событие:</b> {link_text}
+🔗 <a href="{link_url}">Перейти к задаче</a>
+                """.strip()
+
+                print(f"📤 Отправляем: {link_text}")
+                send_to_telegram(telegram_text)
+                mark_as_read(mail, email_id)
+
+            except Exception as e:
+                print(f"❌ Ошибка обработки письма: {e}")
+
         mail.logout()
         print("🔚 Проверка завершена")
 
     except Exception as e:
-        print(f"❌ Ошибка подключения: {e}")
+        print(f"❌ Ошибка: {e}")
         raise
 
 
 if __name__ == "__main__":
-    if not EMAIL:
-        print("❗ EMAIL не задан — проверь секреты")
-    if not PASSWORD:
-        print("❗ MAIL_PASSWORD не задан — проверь секреты")
-    if not TELEGRAM_BOT_TOKEN:
-        print("❗ TELEGRAM_BOT_TOKEN не задан — проверь секреты")
-    if not TELEGRAM_CHAT_ID:
-        print("❗ TELEGRAM_CHAT_ID не задан — проверь секреты")
-
-    if not all([EMAIL, PASSWORD, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID]):
-        print("❌ Не все секреты переданы. Выход.")
+    if not all([EMAIL, PASSWORD, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ALLOWED_SENDER]):
+        print("❗ Не все секреты заданы!")
         exit(1)
 
     check_new_emails()
