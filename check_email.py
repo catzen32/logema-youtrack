@@ -87,7 +87,7 @@ def send_to_telegram1(text):
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,
-        "parse_mode": "HTML",
+        # "parse_mode": "HTML",
         "disable_web_page_preview": True
     }
     print(f"🔧 Payload: {payload}")
