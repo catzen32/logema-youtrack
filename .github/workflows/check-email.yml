@@ -1,4 +1,4 @@
-name: 📬 Проверка почты
+name: 📬 Проверка почты каждые 10 минут
 
 on:
   schedule:
@@ -8,13 +8,20 @@ on:
 jobs:
   check-email:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - name: Checkout код
+        uses: actions/checkout@v4
+
+      - name: Установить Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.11'
+
       - name: Установить зависимости
-        run: pip install requests
+        run: |
+          pip install requests
+
       - name: Запустить скрипт
         env:
           EMAIL: ${{ secrets.EMAIL }}
