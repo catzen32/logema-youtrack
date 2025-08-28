@@ -150,8 +150,8 @@ def check_new_emails():
 
 
 if __name__ == "__main__":
-    if not all([EMAIL, PASSWORD, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ALLOWED_SENDER]):
-        print("❗ Не все секреты заданы!")
-        exit(1)
+#    if not all([EMAIL, PASSWORD, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ALLOWED_SENDER]):
+#        print("❗ Не все секреты заданы!")
+#        exit(1)
 
     check_new_emails()
