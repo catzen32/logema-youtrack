@@ -1,24 +1,29 @@
-name: 📬 Проверка почты каждые 10 минут
+name: Check Email Every 10 Minutes
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
-  workflow_dispatch:
+    - cron: '*/10 * * * *'  # Каждые 10 минут
+  workflow_dispatch:  # Чтобы можно было запустить вручную
 
 jobs:
   check-email:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
           python-version: '3.11'
-      - name: Установить зависимости
-        run: pip install requests
-      - name: Запустить проверку почты
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install imaplib2  # или другие нужные библиотеки
+
+      - name: Run email checker
         env:
           EMAIL: ${{ secrets.EMAIL }}
-          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          APP_PASSWORD: ${{ secrets.APP_PASSWORD }}
         run: python check_email.py
