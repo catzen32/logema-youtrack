@@ -127,8 +127,7 @@ def decode_header(header):
 def check_new_emails():
     print(f"[{datetime.now()}] 🔎 Подключение к почте: {EMAIL}")
 
-    send_to_telegram("🔧 Тест: скрипт запущен и функция отправки работает!")
-    send_to_telegram1("🔧 Тест: скрипт запущен и функция отправки работает!")
+
     
     try:
         mail = imaplib.IMAP4_SSL(IMAP_SERVER, IMAP_PORT)
@@ -172,7 +171,7 @@ def check_new_emails():
 {body}
                     """.strip()
 
-                    send_to_telegram(text)
+                    send_to_telegram1(text)
                     mark_as_read(mail, email_id)
 
                 except Exception as e:
