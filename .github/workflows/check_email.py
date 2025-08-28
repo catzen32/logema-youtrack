@@ -29,7 +29,13 @@ def get_body(msg):
     return "(нет текста)"
 
 def send_to_telegram(text):
+    print("🟩 Функция send_to_telegram вызвана!")  # 🔥 ЭТО ДОЛЖНО БЫТЬ В ЛОГЕ!
     print(f"🔧 Начинаем отправку в Telegram...")
+
+    if not TELEGRAM_BOT_TOKEN:
+        print("❌ ОШИБКА: TELEGRAM_BOT_TOKEN пустой!")
+        return
+    # ...
 
     if not TELEGRAM_BOT_TOKEN:
         print("❌ ОШИБКА: TELEGRAM_BOT_TOKEN пустой!")
