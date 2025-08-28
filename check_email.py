@@ -49,7 +49,7 @@ def send_to_telegram(text):
     encoded_text = urllib.parse.quote_plus(text)
 
     # Формируем URL
-    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={encoded_text}&parse_mode=HTML&disable_web_page_preview=true"
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={encoded_text}&disable_web_page_preview=true"
 
     print(f"🔧 Отправляем GET-запрос: {url}")
 
