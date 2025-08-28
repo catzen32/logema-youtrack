@@ -30,7 +30,15 @@ def get_body(msg):
 
 
 def send_to_telegram(text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    print(f"🔧 Отправляю сообщение в Telegram...")
+    print(f"🔧 BOT_TOKEN: {'*' * len(TELEGRAM_BOT_TOKEN) if TELEGRAM_BOT_TOKEN else 'None'}")
+    print(f"🔧 CHAT_ID: {TELEGRAM_CHAT_ID}")
+
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        print("❌ Не задан токен или ID!")
+        return
+
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,
@@ -40,11 +48,11 @@ def send_to_telegram(text):
     try:
         r = requests.post(url, json=payload, timeout=10)
         if r.status_code == 200:
-            print("✅ Сообщение в Telegram отправлено")
+            print("✅ Сообщение отправлено в Telegram")
         else:
             print(f"❌ Ошибка Telegram: {r.status_code}, {r.text}")
     except Exception as e:
-        print(f"❌ Исключение при отправке в Telegram: {e}")
+        print(f"❌ Исключение: {e}")
 
 
 def mark_as_read(mail, email_id):
