@@ -28,8 +28,37 @@ def get_body(msg):
         return body[:2000]
     return "(нет текста)"
 
-
 def send_to_telegram(text):
+    print(f"🔧 Начинаем отправку в Telegram...")
+
+    if not TELEGRAM_BOT_TOKEN:
+        print("❌ ОШИБКА: TELEGRAM_BOT_TOKEN пустой!")
+        return
+    if not TELEGRAM_CHAT_ID:
+        print("❌ ОШИБКА: TELEGRAM_CHAT_ID пустой!")
+        return
+
+    # Экранируем текст для URL
+    import urllib.parse
+    encoded_text = urllib.parse.quote_plus(text)
+
+    # Формируем URL
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage?chat_id={TELEGRAM_CHAT_ID}&text={encoded_text}&parse_mode=HTML&disable_web_page_preview=true"
+
+    print(f"🔧 Отправляем GET-запрос: {url}")
+
+    try:
+        response = requests.get(url, timeout=15)
+        print(f"📨 Статус: {response.status_code}")
+        print(f"📨 Ответ: {response.text}")
+        if response.status_code == 200 and response.json().get("ok"):
+            print("✅ Успешно отправлено в Telegram!")
+        else:
+            print("❌ Ошибка отправки")
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+
+def send_to_telegram1(text):
     print(f"🔧 Начинаем отправку в Telegram...")
     print(f"🔧 Текст сообщения: {text[:100]}...")  # первые 100 символов
 
