@@ -30,29 +30,44 @@ def get_body(msg):
 
 
 def send_to_telegram(text):
-    print(f"🔧 Отправляю сообщение в Telegram...")
-    print(f"🔧 BOT_TOKEN: {'*' * len(TELEGRAM_BOT_TOKEN) if TELEGRAM_BOT_TOKEN else 'None'}")
-    print(f"🔧 CHAT_ID: {TELEGRAM_CHAT_ID}")
+    print(f"🔧 Начинаем отправку в Telegram...")
+    print(f"🔧 Текст сообщения: {text[:100]}...")  # первые 100 символов
 
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
-        print("❌ Не задан токен или ID!")
+    # Проверяем переменные
+    if not TELEGRAM_BOT_TOKEN:
+        print("❌ ОШИБКА: TELEGRAM_BOT_TOKEN пустой!")
         return
+    else:
+        print(f"✅ TELEGRAM_BOT_TOKEN: присутствует (длина {len(TELEGRAM_BOT_TOKEN)})")
+
+    if not TELEGRAM_CHAT_ID:
+        print("❌ ОШИБКА: TELEGRAM_CHAT_ID пустой!")
+        return
+    else:
+        print(f"✅ TELEGRAM_CHAT_ID: {TELEGRAM_CHAT_ID}")
 
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    print(f"🔧 Отправляем POST-запрос: {url}")
+    
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,
         "parse_mode": "HTML",
         "disable_web_page_preview": True
     }
+    print(f"🔧 Payload: {payload}")
+
     try:
-        r = requests.post(url, json=payload, timeout=10)
-        if r.status_code == 200:
-            print("✅ Сообщение отправлено в Telegram")
+        response = requests.post(url, json=payload, timeout=15)
+        print(f"📨 Статус ответа: {response.status_code}")
+        print(f"📨 Ответ Telegram: {response.text}")
+
+        if response.status_code == 200:
+            print("✅ УСПЕХ: Сообщение отправлено в Telegram!")
         else:
-            print(f"❌ Ошибка Telegram: {r.status_code}, {r.text}")
+            print("❌ ОШИБКА: Не удалось отправить сообщение.")
     except Exception as e:
-        print(f"❌ Исключение: {e}")
+        print(f"❌ ФАТАЛЬНАЯ ОШИБКА при отправке: {type(e).__name__}: {e}")
 
 
 def mark_as_read(mail, email_id):
