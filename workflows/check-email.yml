@@ -11,6 +11,7 @@ EMAIL = os.getenv("EMAIL")
 PASSWORD = os.getenv("MAIL_PASSWORD")  # Пароль от почты mail.ru
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+ALLOWED_SENDER = os.getenv("SENDER_EMAIL")  # Только от этого отправителя
 
 IMAP_SERVER = "imap.mail.ru"
 IMAP_PORT = 993
