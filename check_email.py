@@ -11,7 +11,7 @@ PASSWORD = os.getenv("MAIL_PASSWORD")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 ALLOWED_SENDER = os.getenv("SENDER_EMAIL")  # Только от этого отправителя
-ALLOWED_SENDER = "1@1.ru"
+# ALLOWED_SENDER = "1@1.ru"
 
 IMAP_SERVER = "imap.mail.ru"
 IMAP_PORT = 993
@@ -153,6 +153,6 @@ def check_new_emails():
 if __name__ == "__main__":
     if not all([EMAIL, PASSWORD, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ALLOWED_SENDER]):
         print("❗ Не все секреты заданы!")
-#        exit(1)
+        exit(1)
 
     check_new_emails()
