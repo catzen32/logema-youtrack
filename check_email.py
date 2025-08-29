@@ -13,7 +13,6 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 ALLOWED_SENDER = os.getenv("SENDER_EMAIL")  # Только от этого отправителя
 # ALLOWED_SENDER = "1@1.ru"
 print(f"🔍 ALLOWED_SENDER: '{ALLOWED_SENDER}'")
-print(f"🔍 ALLOWED_SENDER: '{os.getenv("SENDER_EMAIL")}'")
 
 IMAP_SERVER = "imap.mail.ru"
 IMAP_PORT = 993
