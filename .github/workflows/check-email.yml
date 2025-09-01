@@ -2,7 +2,7 @@ name: 📬 Проверка почты
 
 on:
   schedule:
-    - cron: '*/5 * * * *'
+    - cron: '*/10 8-20 * * 1-5'
   workflow_dispatch:
 
 jobs:
