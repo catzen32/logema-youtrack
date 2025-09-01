@@ -4,7 +4,18 @@ from datetime import datetime
 import os
 import requests
 import re
-from bs4 import BeautifulSoup  # Нужно установить
+
+# === Переменные из секретов ===
+EMAIL = os.getenv("EMAIL")
+PASSWORD = os.getenv("MAIL_PASSWORD")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+ALLOWED_SENDER = os.getenv("SENDER_EMAIL")  # Только от этого отправителя
+
+print(f"🔍 ALLOWED_SENDER: '{ALLOWED_SENDER}'")
+
+IMAP_SERVER = "imap.mail.ru"
+IMAP_PORT = 993
 
 
 def extract_youtrack_link(body):
@@ -12,43 +23,40 @@ def extract_youtrack_link(body):
     Ищет вторую ссылку, начинающуюся с https://youtrack.logema.org/
     Возвращает (текст_ссылки, ссылка)
     """
-    soup = BeautifulSoup(body, 'html.parser')
-    links = soup.find_all('a', href=True)
-    youtrack_links = [link for link in links if link['href'].startswith("https://youtrack.logema.org/")]
-
+    pattern = r'<a[^>]+href="([^"]+)"[^>]*>([^<]+)</a>'
+    matches = re.findall(pattern, body, re.IGNORECASE)
+    youtrack_links = [m for m in matches if m[0].startswith("https://youtrack.logema.org/")]
     if len(youtrack_links) >= 2:
-        link = youtrack_links[1]
-        return link.get_text(strip=True), link['href']
+        link_info = youtrack_links[1]  # Вторая ссылка
+        return link_info[1].strip(), link_info[0]
     elif len(youtrack_links) == 1:
-        link = youtrack_links[0]
-        return link.get_text(strip=True), link['href']
+        return youtrack_links[0][1].strip(), youtrack_links[0][0]
     else:
         return None, None
 
 
 def extract_second_td_text(body):
     """
-    Ищет второй <td> с нужным стилем и извлекает из него чистый текст
+    Извлекает текст из второго <td> с нужным стилем
     """
-    soup = BeautifulSoup(body, 'html.parser')
-    tds = soup.find_all('td', style=re.compile(r'padding: 12px 16px;background: rgb\(240, 240, 240\)'))
-    
-    if len(tds) >= 2:
-        td = tds[1]
-        # Удаляем теги, картинки, ссылки — оставляем только текст
-        for img in td.find_all('img'):
-            img.decompose()
-        for a in td.find_all('a'):
-            a.replace_with(a.get_text())  # Заменяем ссылку на её текст
-        return td.get_text(strip=False).strip()
-    elif len(tds) == 1:
-        td = tds[0]
-        for img in td.find_all('img'):
-            img.decompose()
-        for a in td.find_all('a'):
-            a.replace_with(a.get_text())
-        return td.get_text(strip=False).strip()
-    return None
+    # Ищем все <td> с нужным стилем
+    pattern = r'<td[^>]*style="[^"]*padding:\s*12px\s+16px;background:\s*rgb$$240,\s*240,\s*240$$[^"]*"[^>]*>(.*?)</td>'
+    matches = re.findall(pattern, body, re.DOTALL | re.IGNORECASE)
+
+    if len(matches) >= 2:
+        td_content = matches[1]
+    elif len(matches) == 1:
+        td_content = matches[0]
+    else:
+        return None
+
+    # Удаляем изображения и ссылки, оставляем только текст
+    clean_text = re.sub(r'<img[^>]*>', '', td_content)  # удаляем картинки
+    clean_text = re.sub(r'<a[^>]*>([^<]*)</a>', r'\1', clean_text)  # оставляем текст ссылок
+    clean_text = re.sub(r'<[^>]+>', '', clean_text)  # удаляем остальные теги
+    clean_text = re.sub(r'\s+', ' ', clean_text).strip()  # убираем лишние пробелы
+
+    return clean_text if clean_text else None
 
 
 def send_to_telegram(text):
@@ -109,14 +117,12 @@ def check_new_emails():
                 raw = msg_data[0][1]
                 msg = email.message_from_bytes(raw)
 
-                # Проверяем отправителя
+                # 🔍 Фильтр по отправителю
                 sender = msg.get("From", "")
-                if ALLOWED_SENDER not in sender:
-                    print(f"📧 Пропуск письма от: {sender}")
+                print(f"📧 Отправитель: {sender}")
+                if ALLOWED_SENDER and ALLOWED_SENDER not in sender:
+                    print(f"❌ Пропуск письма от: {sender} (не разрешён)")
                     continue
-
-                # Декодируем тему
-                subject = decode_header(msg["Subject"]) if msg["Subject"] else "Без темы"
 
                 # Получаем тело письма
                 body = ""
@@ -134,19 +140,18 @@ def check_new_emails():
                     mark_as_read(mail, email_id)
                     continue
 
-                # Ищем вторую ссылку на YouTrack
+                # 🧩 Извлекаем нужные данные
                 link_text, link_url = extract_youtrack_link(body)
                 if not link_url:
                     print("❌ Ссылка на YouTrack не найдена")
                     mark_as_read(mail, email_id)
                     continue
 
-                # Извлекаем текст из второго <td>
                 td_text = extract_second_td_text(body)
                 if not td_text:
-                    td_text = "Текст из уведомления не извлечён."
+                    td_text = "Подробности уведомления недоступны."
 
-                # Формируем сообщение для Telegram
+                # ✅ Формируем сообщение для Telegram
                 telegram_text = f"""
 {td_text}
 
@@ -166,3 +171,10 @@ def check_new_emails():
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         raise
+
+
+if __name__ == "__main__":
+    if not all([EMAIL, PASSWORD, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ALLOWED_SENDER]):
+        print("❗ Не все секреты заданы!")
+        exit(1)
+    check_new_emails()
