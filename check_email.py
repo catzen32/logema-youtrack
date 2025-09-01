@@ -4,18 +4,7 @@ from datetime import datetime
 import os
 import requests
 import re
-
-# === Переменные из секретов ===
-EMAIL = os.getenv("EMAIL")
-PASSWORD = os.getenv("MAIL_PASSWORD")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-ALLOWED_SENDER = os.getenv("SENDER_EMAIL")  # Только от этого отправителя
-# ALLOWED_SENDER = "1@1.ru"
-print(f"🔍 ALLOWED_SENDER: '{ALLOWED_SENDER}'")
-
-IMAP_SERVER = "imap.mail.ru"
-IMAP_PORT = 993
+from bs4 import BeautifulSoup  # Нужно установить
 
 
 def extract_youtrack_link(body):
@@ -23,20 +12,43 @@ def extract_youtrack_link(body):
     Ищет вторую ссылку, начинающуюся с https://youtrack.logema.org/
     Возвращает (текст_ссылки, ссылка)
     """
-    # Найдём все ссылки вида: <a href="URL">Текст</a>
-    pattern = r'<a[^>]+href="([^"]+)"[^>]*>([^<]+)</a>'
-    matches = re.findall(pattern, body, re.IGNORECASE)
-
-    # Фильтруем только те, что начинаются с нужного URL
-    youtrack_links = [m for m in matches if m[0].startswith("https://youtrack.logema.org/")]
+    soup = BeautifulSoup(body, 'html.parser')
+    links = soup.find_all('a', href=True)
+    youtrack_links = [link for link in links if link['href'].startswith("https://youtrack.logema.org/")]
 
     if len(youtrack_links) >= 2:
-        link_info = youtrack_links[1]  # Вторая ссылка
-        return link_info[1].strip(), link_info[0]  # (текст, URL)
+        link = youtrack_links[1]
+        return link.get_text(strip=True), link['href']
     elif len(youtrack_links) == 1:
-        return youtrack_links[0][1].strip(), youtrack_links[0][0]
+        link = youtrack_links[0]
+        return link.get_text(strip=True), link['href']
     else:
         return None, None
+
+
+def extract_second_td_text(body):
+    """
+    Ищет второй <td> с нужным стилем и извлекает из него чистый текст
+    """
+    soup = BeautifulSoup(body, 'html.parser')
+    tds = soup.find_all('td', style=re.compile(r'padding: 12px 16px;background: rgb\(240, 240, 240\)'))
+    
+    if len(tds) >= 2:
+        td = tds[1]
+        # Удаляем теги, картинки, ссылки — оставляем только текст
+        for img in td.find_all('img'):
+            img.decompose()
+        for a in td.find_all('a'):
+            a.replace_with(a.get_text())  # Заменяем ссылку на её текст
+        return td.get_text(strip=False).strip()
+    elif len(tds) == 1:
+        td = tds[0]
+        for img in td.find_all('img'):
+            img.decompose()
+        for a in td.find_all('a'):
+            a.replace_with(a.get_text())
+        return td.get_text(strip=False).strip()
+    return None
 
 
 def send_to_telegram(text):
@@ -45,7 +57,8 @@ def send_to_telegram(text):
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
         "text": text,
-        "disable_web_page_preview": False  # Пусть ссылка отображается красиво
+        "parse_mode": "HTML",
+        "disable_web_page_preview": False
     }
     try:
         response = requests.post(url, json=payload, timeout=15)
@@ -99,7 +112,7 @@ def check_new_emails():
                 # Проверяем отправителя
                 sender = msg.get("From", "")
                 if ALLOWED_SENDER not in sender:
-                    print(f"📧 Пропуск письма от: {sender} (не из списка разрешённых)")
+                    print(f"📧 Пропуск письма от: {sender}")
                     continue
 
                 # Декодируем тему
@@ -121,19 +134,23 @@ def check_new_emails():
                     mark_as_read(mail, email_id)
                     continue
 
-                # Ищем вторую ссылку на youtrack.logema.org
+                # Ищем вторую ссылку на YouTrack
                 link_text, link_url = extract_youtrack_link(body)
-
                 if not link_url:
                     print("❌ Ссылка на YouTrack не найдена")
                     mark_as_read(mail, email_id)
                     continue
 
-                # Формируем сообщение
+                # Извлекаем текст из второго <td>
+                td_text = extract_second_td_text(body)
+                if not td_text:
+                    td_text = "Текст из уведомления не извлечён."
+
+                # Формируем сообщение для Telegram
                 telegram_text = f"""
-📬 <b>Новое уведомление из YouTrack</b>
-📌 <b>Событие:</b> {link_text}
-🔗 <a href="{link_url}">Перейти к задаче</a>
+{td_text}
+
+<a href="{link_url}">Перейти к задаче</a>
                 """.strip()
 
                 print(f"📤 Отправляем: {link_text}")
@@ -149,11 +166,3 @@ def check_new_emails():
     except Exception as e:
         print(f"❌ Ошибка: {e}")
         raise
-
-
-if __name__ == "__main__":
-    if not all([EMAIL, PASSWORD, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ALLOWED_SENDER]):
-        print("❗ Не все секреты заданы!")
-        exit(1)
-
-    check_new_emails()
