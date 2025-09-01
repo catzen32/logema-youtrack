@@ -10,7 +10,7 @@ EMAIL = os.getenv("EMAIL")
 PASSWORD = os.getenv("MAIL_PASSWORD")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-ALLOWED_SENDER = os.getenv("SENDER_EMAIL")
+ALLOWED_SENDER = os.getenv("SENDER_EMAIL")  # Только письма от этого отправителя
 
 print(f"🔍 ALLOWED_SENDER: '{ALLOWED_SENDER}'")
 
@@ -35,28 +35,27 @@ def extract_youtrack_link(body):
         return None, None
 
 
-def extract_second_td_text(body):
+def extract_text_from_second_tr(body):
     """
-    Извлекает текст из второго <td> с нужным стилем
-    Удаляет img и ссылки, оставляет только текст
+    Извлекает текст из второго <tr> в письме.
+    Удаляет <img>, <a> и другие теги, оставляя только чистый текст.
     """
-    pattern = r'<td[^>]*style="[^"]*padding:\s*12px\s+16px;background:\s*rgb$$240,\s*240,\s*240$$[^"]*"[^>]*>(.*?)</td>'
-    matches = re.findall(pattern, body, re.DOTALL | re.IGNORECASE)
+    # Ищем все <tr> в письме
+    tr_pattern = r'<tr[^>]*>(.*?)</tr>'
+    matches = re.findall(tr_pattern, body, re.DOTALL | re.IGNORECASE)
 
-    if len(matches) >= 2:
-        td_content = matches[1]
-    elif len(matches) == 1:
-        td_content = matches[0]
-    else:
-        return None
+    if len(matches) < 2:
+        return None  # Нет второго tr
+
+    second_tr_content = matches[1]  # Берём второй <tr>
 
     # Удаляем изображения
-    clean_text = re.sub(r'<img[^>]*>', '', td_content)
+    clean_text = re.sub(r'<img[^>]*>', '', second_tr_content)
     # Заменяем ссылки на их текст
     clean_text = re.sub(r'<a[^>]*>([^<]*)</a>', r'\1', clean_text)
-    # Удаляем остальные теги
+    # Удаляем остальные HTML-теги
     clean_text = re.sub(r'<[^>]+>', '', clean_text)
-    # Убираем лишние пробелы
+    # Убираем лишние пробелы и переносы
     clean_text = re.sub(r'\s+', ' ', clean_text).strip()
 
     return clean_text if clean_text else None
@@ -149,15 +148,15 @@ def check_new_emails():
                     mark_as_read(mail, email_id)
                     continue
 
-                td_text = extract_second_td_text(body)
-                if not td_text:
-                    td_text = ""
+                tr_text = extract_text_from_second_tr(body)
+                if not tr_text:
+                    tr_text = ""  # Не добавляем, если пусто
 
-                # ✅ Формируем сообщение: только текст ссылки, td и кнопка
+                # Формируем сообщение для Telegram
                 telegram_text = f"{link_text}".strip()
 
-                if td_text:
-                    telegram_text += f"\n\n{td_text}"
+                if tr_text:
+                    telegram_text += f"\n\n{tr_text}"
 
                 telegram_text += f"\n\n<a href='{link_url}'>Перейти к задаче</a>"
 
