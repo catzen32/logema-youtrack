@@ -19,7 +19,7 @@ jobs:
 
       - name: Установить зависимости
         run: |
-          pip install requests
+          pip install requests beautifulsoup4
 
       - name: Запустить скрипт
         env:
