@@ -10,7 +10,7 @@ EMAIL = os.getenv("EMAIL")
 PASSWORD = os.getenv("MAIL_PASSWORD")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-ALLOWED_SENDER = os.getenv("SENDER_EMAIL")  # Только от этого отправителя
+ALLOWED_SENDER = os.getenv("SENDER_EMAIL")
 
 print(f"🔍 ALLOWED_SENDER: '{ALLOWED_SENDER}'")
 
@@ -38,8 +38,8 @@ def extract_youtrack_link(body):
 def extract_second_td_text(body):
     """
     Извлекает текст из второго <td> с нужным стилем
+    Удаляет img и ссылки, оставляет только текст
     """
-    # Ищем все <td> с нужным стилем
     pattern = r'<td[^>]*style="[^"]*padding:\s*12px\s+16px;background:\s*rgb$$240,\s*240,\s*240$$[^"]*"[^>]*>(.*?)</td>'
     matches = re.findall(pattern, body, re.DOTALL | re.IGNORECASE)
 
@@ -50,11 +50,14 @@ def extract_second_td_text(body):
     else:
         return None
 
-    # Удаляем изображения и ссылки, оставляем только текст
-    clean_text = re.sub(r'<img[^>]*>', '', td_content)  # удаляем картинки
-    clean_text = re.sub(r'<a[^>]*>([^<]*)</a>', r'\1', clean_text)  # оставляем текст ссылок
-    clean_text = re.sub(r'<[^>]+>', '', clean_text)  # удаляем остальные теги
-    clean_text = re.sub(r'\s+', ' ', clean_text).strip()  # убираем лишние пробелы
+    # Удаляем изображения
+    clean_text = re.sub(r'<img[^>]*>', '', td_content)
+    # Заменяем ссылки на их текст
+    clean_text = re.sub(r'<a[^>]*>([^<]*)</a>', r'\1', clean_text)
+    # Удаляем остальные теги
+    clean_text = re.sub(r'<[^>]+>', '', clean_text)
+    # Убираем лишние пробелы
+    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
 
     return clean_text if clean_text else None
 
@@ -117,11 +120,10 @@ def check_new_emails():
                 raw = msg_data[0][1]
                 msg = email.message_from_bytes(raw)
 
-                # 🔍 Фильтр по отправителю
+                # Проверяем отправителя
                 sender = msg.get("From", "")
-                print(f"📧 Отправитель: {sender}")
                 if ALLOWED_SENDER and ALLOWED_SENDER not in sender:
-                    print(f"❌ Пропуск письма от: {sender} (не разрешён)")
+                    print(f"📧 Пропуск письма от: {sender}")
                     continue
 
                 # Получаем тело письма
@@ -140,7 +142,7 @@ def check_new_emails():
                     mark_as_read(mail, email_id)
                     continue
 
-                # 🧩 Извлекаем нужные данные
+                # Извлекаем данные
                 link_text, link_url = extract_youtrack_link(body)
                 if not link_url:
                     print("❌ Ссылка на YouTrack не найдена")
@@ -149,14 +151,15 @@ def check_new_emails():
 
                 td_text = extract_second_td_text(body)
                 if not td_text:
-                    td_text = "Подробности уведомления недоступны."
+                    td_text = ""
 
-                # ✅ Формируем сообщение для Telegram
-                telegram_text = f"""
-{td_text}
+                # ✅ Формируем сообщение: только текст ссылки, td и кнопка
+                telegram_text = f"{link_text}".strip()
 
-<a href="{link_url}">Перейти к задаче</a>
-                """.strip()
+                if td_text:
+                    telegram_text += f"\n\n{td_text}"
+
+                telegram_text += f"\n\n<a href='{link_url}'>Перейти к задаче</a>"
 
                 print(f"📤 Отправляем: {link_text}")
                 send_to_telegram(telegram_text)
