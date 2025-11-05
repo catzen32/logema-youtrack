@@ -11,14 +11,9 @@ EMAIL = os.getenv("EMAIL")
 PASSWORD = os.getenv("MAIL_PASSWORD")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-is_allowed_sender = ALLOWED_SENDER and ALLOWED_SENDER in sender
-is_bitrix_sender = "bitrix24@rusgeocom.ru" in sender
+ALLOWED_SENDER = os.getenv("SENDER_EMAIL")  # Только письма от этого отправителя
 
-
-
-
-
-
+print(f"🔍 ALLOWED_SENDER: '{ALLOWED_SENDER}'")
 
 IMAP_SERVER = "imap.mail.ru"
 IMAP_PORT = 993
@@ -46,22 +41,17 @@ def extract_text_from_second_tr(body):
     Извлекает текст из второго <tr> в письме.
     Удаляет <img>, <a> и другие теги, оставляя только чистый текст.
     """
-    # Ищем все <tr> в письме
     tr_pattern = r'<tr[^>]*>(.*?)</tr>'
     matches = re.findall(tr_pattern, body, re.DOTALL | re.IGNORECASE)
 
     if len(matches) < 2:
         return None  # Нет второго tr
 
-    second_tr_content = matches[1]  # Берём второй <tr>
+    second_tr_content = matches[1]
 
-    # Удаляем изображения
     clean_text = re.sub(r'<img[^>]*>', '', second_tr_content)
-    # Заменяем ссылки на их текст
     clean_text = re.sub(r'<a[^>]*>([^<]*)</a>', r'\1', clean_text)
-    # Удаляем остальные HTML-теги
     clean_text = re.sub(r'<[^>]+>', '', clean_text)
-    # Убираем лишние пробелы и переносы
     clean_text = re.sub(r'\s+', ' ', clean_text).strip()
 
     return clean_text if clean_text else None
@@ -69,6 +59,7 @@ def extract_text_from_second_tr(body):
 
 def send_to_telegram(text):
     print(f"🔧 Отправляем в Telegram: {text[:50]}...")
+    # Исправлен URL: убраны пробелы после "bot"
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -78,7 +69,10 @@ def send_to_telegram(text):
     }
     try:
         response = requests.post(url, json=payload, timeout=15)
-        print(f"📨 Статус: {response.status_code}, ответ: {response.text}")
+        if response.status_code == 200:
+            print("✅ Сообщение в Telegram отправлено")
+        else:
+            print(f"❌ Telegram API error: {response.status_code} - {response.text}")
     except Exception as e:
         print(f"❌ Ошибка отправки: {e}")
 
@@ -89,17 +83,6 @@ def mark_as_read(mail, email_id):
         print(f"✅ Письмо {email_id.decode()} отмечено как прочитанное")
     except Exception as e:
         print(f"❌ Ошибка при отметке: {e}")
-
-
-def decode_header(header):
-    decoded_parts = email.header.decode_header(header)
-    result = ""
-    for part, charset in decoded_parts:
-        if isinstance(part, bytes):
-            result += part.decode(charset or "utf-8", errors="ignore")
-        else:
-            result += part
-    return result
 
 
 def check_new_emails():
@@ -125,9 +108,15 @@ def check_new_emails():
                 raw = msg_data[0][1]
                 msg = email.message_from_bytes(raw)
 
+                sender = msg.get("From", "")
+
+                # Разрешаем основной отправитель ИЛИ Bitrix24
+                is_allowed_sender = ALLOWED_SENDER and ALLOWED_SENDER in sender
+                is_bitrix_sender = "bitrix24@rusgeocom.ru" in sender
+
                 if not (is_allowed_sender or is_bitrix_sender):
-                print(f"📧 Пропуск письма от: {sender}")
-                continue
+                    print(f"📧 Пропуск письма от: {sender}")
+                    continue
 
                 # Получаем тело письма
                 body = ""
@@ -145,7 +134,7 @@ def check_new_emails():
                     mark_as_read(mail, email_id)
                     continue
 
-                # === НОВЫЙ БЛОК: обработка писем от Bitrix24 с Борисевичем ===
+                # === Обработка писем от Bitrix24 с "Борисевич" ===
                 if "bitrix24@rusgeocom.ru" in sender and "Борисевич" in body:
                     print("✅ Найдено письмо от Bitrix24 с Борисевичем")
 
@@ -153,11 +142,10 @@ def check_new_emails():
                     match = re.search(r'Просмотр:\s*<a[^>]+href="([^"]+)"', body, re.IGNORECASE)
                     if match:
                         raw_link = match.group(1)
-                        # Декодируем HTML-сущности: &amp; → &
                         view_link = html.unescape(raw_link)
                     else:
-                        # Попытка 2: извлечь из текста ссылки (между <a> и </a>)
-                        match = re.search(r'Просмотр:\s*<a[^>]*>\s*(https?://[^\s<>"\)]+)', body, re.IGNORECASE)
+                        # Попытка 2: извлечь plain URL
+                        match = re.search(r'Просмотр:\s*(https?://[^\s<>"\)]+)', body, re.IGNORECASE)
                         if match:
                             view_link = match.group(1)
                         else:
@@ -170,15 +158,9 @@ def check_new_emails():
                     send_to_telegram(telegram_msg)
                     mark_as_read(mail, email_id)
                     continue
-                # === КОНЕЦ БЛОКА ===
+                # === Конец обработки Bitrix24 ===
 
-                # Извлекаем данные (старая логика)
-                link_text, link_url = extract_youtrack_link(body)
-                # ... остальной код ...
-
-
-                
-                # Извлекаем данные
+                # === Обработка YouTrack ===
                 link_text, link_url = extract_youtrack_link(body)
                 if not link_url:
                     print("❌ Ссылка на YouTrack не найдена")
@@ -187,17 +169,14 @@ def check_new_emails():
 
                 tr_text = extract_text_from_second_tr(body)
                 if not tr_text:
-                    tr_text = ""  # Не добавляем, если пусто
+                    tr_text = ""
 
-                # Формируем сообщение для Telegram
                 telegram_text = f"{link_text}".strip()
-
                 if tr_text:
                     telegram_text += f"\n\n{tr_text}"
-
                 telegram_text += f"\n\n<a href='{link_url}'>Перейти к задаче</a>"
 
-                print(f"📤 Отправляем: {link_text}")
+                print(f"📤 Отправляем YouTrack-сообщение: {link_text}")
                 send_to_telegram(telegram_text)
                 mark_as_read(mail, email_id)
 
@@ -213,7 +192,8 @@ def check_new_emails():
 
 
 if __name__ == "__main__":
-    if not all([EMAIL, PASSWORD, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ALLOWED_SENDER]):
+    required_vars = [EMAIL, PASSWORD, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ALLOWED_SENDER]
+    if not all(required_vars):
         print("❗ Не все секреты заданы!")
         exit(1)
     check_new_emails()
