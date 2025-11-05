@@ -143,22 +143,34 @@ def check_new_emails():
 
 
 
-                # === НОВЫЙ БЛОК: обработка писем от Bitrix24 с "Борисевич" ===
-                if "bitrix24@rusgeocom.ru" in sender and "Борисевич" in body:
-                    # Ищем фразу "Просмотр: " и извлекаем ссылку после неё
-                    match = re.search(r'Просмотр:\s*<a[^>]+href="([^"]+)"', body, re.IGNORECASE)
-                    if match:
-                        view_link = match.group(1)
-                        telegram_msg = f"Битрикс {view_link}"
-                        print(f"📤 Отправляем Bitrix-сообщение: {telegram_msg}")
-                        send_to_telegram(telegram_msg)
-                        mark_as_read(mail, email_id)
-                        continue  # Пропускаем остальную обработку
-                # === КОНЕЦ НОВОГО БЛОКА ===
+import html  # для декодирования &amp; -> &
 
-                # Извлекаем данные (старая логика)
-                link_text, link_url = extract_youtrack_link(body)
-                # ... остальной код без изменений ...
+# === НОВЫЙ БЛОК: обработка писем от Bitrix24 с Борисевичем ===
+if "bitrix24@rusgeocom.ru" in sender and "Борисевич" in body:
+    print("✅ Найдено письмо от Bitrix24 с Борисевичем")
+
+    # Попытка 1: извлечь из href
+    match = re.search(r'Просмотр:\s*<a[^>]+href="([^"]+)"', body, re.IGNORECASE)
+    if match:
+        raw_link = match.group(1)
+        # Декодируем HTML-сущности: &amp; → &
+        view_link = html.unescape(raw_link)
+    else:
+        # Попытка 2: извлечь из текста ссылки (между <a> и </a>)
+        match = re.search(r'Просмотр:\s*<a[^>]*>\s*(https?://[^\s<>"\)]+)', body, re.IGNORECASE)
+        if match:
+            view_link = match.group(1)
+        else:
+            print("❌ Не удалось найти ссылку после 'Просмотр:'")
+            mark_as_read(mail, email_id)
+            continue
+
+    telegram_msg = f"Битрикс {view_link}"
+    print(f"📤 Отправляем в Telegram: {telegram_msg}")
+    send_to_telegram(telegram_msg)
+    mark_as_read(mail, email_id)
+    continue
+# === КОНЕЦ БЛОКА ===
 
 
                 
