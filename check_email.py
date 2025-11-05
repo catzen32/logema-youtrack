@@ -59,7 +59,6 @@ def extract_text_from_second_tr(body):
 
 def send_to_telegram(text):
     print(f"🔧 Отправляем в Telegram: {text[:50]}...")
-    # Исправлен URL: убраны пробелы после "bot"
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
@@ -134,33 +133,40 @@ def check_new_emails():
                     mark_as_read(mail, email_id)
                     continue
 
-                # === Обработка писем от Bitrix24 с "Борисевич" ===
-                if "bitrix24@rusgeocom.ru" in sender and "Борисевич" in body:
-                    print("✅ Найдено письмо от Bitrix24 с Борисевичем")
+                # === Обработка Bitrix24: ищем ТОЛЬКО во второй таблице ===
+                if "bitrix24@rusgeocom.ru" in sender:
+                    # Ищем все таблицы
+                    table_pattern = r'<table[^>]*>.*?</table>'
+                    tables = re.findall(table_pattern, body, re.DOTALL | re.IGNORECASE)
 
-                    # Попытка 1: извлечь из href
-                    match = re.search(r'Просмотр:\s*<a[^>]+href="([^"]+)"', body, re.IGNORECASE)
-                    if match:
-                        raw_link = match.group(1)
-                        view_link = html.unescape(raw_link)
-                    else:
-                        # Попытка 2: извлечь plain URL
-                        match = re.search(r'Просмотр:\s*(https?://[^\s<>"\)]+)', body, re.IGNORECASE)
-                        if match:
-                            view_link = match.group(1)
+                    if len(tables) >= 2:
+                        second_table = tables[1]
+                        if "Борисевич" in second_table:
+                            print("✅ Найдено 'Борисевич' во второй таблице")
+
+                            # Ищем ссылку Просмотр: внутри второй таблицы
+                            match = re.search(r'Просмотр:\s*<a[^>]+href="([^"]+)"', second_table, re.IGNORECASE)
+                            if not match:
+                                # Fallback: plain URL
+                                match = re.search(r'Просмотр:\s*(https?://[^\s<>"\)]+)', second_table, re.IGNORECASE)
+
+                            if match:
+                                raw_link = match.group(1)
+                                # Используем unescape только если есть HTML-сущности
+                                view_link = html.unescape(raw_link)
+                                telegram_msg = f"Битрикс {view_link}"
+                                print(f"📤 Отправляем в Telegram: {telegram_msg}")
+                                send_to_telegram(telegram_msg)
+                                mark_as_read(mail, email_id)
+                                continue
+                            else:
+                                print("❌ Ссылка 'Просмотр:' не найдена во второй таблице")
                         else:
-                            print("❌ Не удалось найти ссылку после 'Просмотр:'")
-                            mark_as_read(mail, email_id)
-                            continue
+                            print("🔍 'Борисевич' не найден во второй таблице — пропуск")
+                    else:
+                        print("⚠️ Менее двух таблиц в письме от Bitrix24 — пропуск")
 
-                    telegram_msg = f"Битрикс {view_link}"
-                    print(f"📤 Отправляем в Telegram: {telegram_msg}")
-                    send_to_telegram(telegram_msg)
-                    mark_as_read(mail, email_id)
-                    continue
-                # === Конец обработки Bitrix24 ===
-
-                # === Обработка YouTrack ===
+                # === Обработка YouTrack (для ALLOWED_SENDER) ===
                 link_text, link_url = extract_youtrack_link(body)
                 if not link_url:
                     print("❌ Ссылка на YouTrack не найдена")
