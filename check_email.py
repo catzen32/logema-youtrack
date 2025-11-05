@@ -11,9 +11,16 @@ EMAIL = os.getenv("EMAIL")
 PASSWORD = os.getenv("MAIL_PASSWORD")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
-ALLOWED_SENDER = os.getenv("SENDER_EMAIL")  # Только письма от этого отправителя
+is_allowed_sender = ALLOWED_SENDER and ALLOWED_SENDER in sender
+is_bitrix_sender = "bitrix24@rusgeocom.ru" in sender
 
-print(f"🔍 ALLOWED_SENDER: '{ALLOWED_SENDER}'")
+if not (is_allowed_sender or is_bitrix_sender):
+    print(f"📧 Пропуск письма от: {sender}")
+    continue
+
+
+
+
 
 IMAP_SERVER = "imap.mail.ru"
 IMAP_PORT = 993
