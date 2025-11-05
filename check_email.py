@@ -14,9 +14,7 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 is_allowed_sender = ALLOWED_SENDER and ALLOWED_SENDER in sender
 is_bitrix_sender = "bitrix24@rusgeocom.ru" in sender
 
-if not (is_allowed_sender or is_bitrix_sender):
-    print(f"📧 Пропуск письма от: {sender}")
-    continue
+
 
 
 
@@ -127,11 +125,9 @@ def check_new_emails():
                 raw = msg_data[0][1]
                 msg = email.message_from_bytes(raw)
 
-                # Проверяем отправителя
-                sender = msg.get("From", "")
-                if ALLOWED_SENDER and ALLOWED_SENDER not in sender:
-                    print(f"📧 Пропуск письма от: {sender}")
-                    continue
+                if not (is_allowed_sender or is_bitrix_sender):
+                print(f"📧 Пропуск письма от: {sender}")
+                continue
 
                 # Получаем тело письма
                 body = ""
