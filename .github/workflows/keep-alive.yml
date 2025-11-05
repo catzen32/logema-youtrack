@@ -1,0 +1,20 @@
+on:
+  schedule:
+    - cron: '0 0 1 */1 *'  # Примерно раз в 1 месяца (1-го числа каждые 1 месяца)
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Обновить heartbeat файл
+        run: |
+          echo "Last active: $(date -u)" > .github/heartbeat.txt
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add .github/heartbeat.txt
+          git commit -m "chore: keep repo active" || echo "No changes to commit"
+          git push
