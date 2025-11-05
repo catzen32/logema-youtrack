@@ -4,6 +4,7 @@ from datetime import datetime
 import os
 import requests
 import re
+import html  # для декодирования &amp; -> &
 
 # === Переменные из секретов ===
 EMAIL = os.getenv("EMAIL")
@@ -143,7 +144,7 @@ def check_new_emails():
 
 
 
-import html  # для декодирования &amp; -> &
+
 
 # === НОВЫЙ БЛОК: обработка писем от Bitrix24 с Борисевичем ===
 if "bitrix24@rusgeocom.ru" in sender and "Борисевич" in body:
