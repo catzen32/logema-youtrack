@@ -141,6 +141,27 @@ def check_new_emails():
                     mark_as_read(mail, email_id)
                     continue
 
+
+
+                # === НОВЫЙ БЛОК: обработка писем от Bitrix24 с "Борисевич" ===
+                if "bitrix24@rusgeocom.ru" in sender and "Борисевич" in body:
+                    # Ищем фразу "Просмотр: " и извлекаем ссылку после неё
+                    match = re.search(r'Просмотр:\s*<a[^>]+href="([^"]+)"', body, re.IGNORECASE)
+                    if match:
+                        view_link = match.group(1)
+                        telegram_msg = f"Битрикс {view_link}"
+                        print(f"📤 Отправляем Bitrix-сообщение: {telegram_msg}")
+                        send_to_telegram(telegram_msg)
+                        mark_as_read(mail, email_id)
+                        continue  # Пропускаем остальную обработку
+                # === КОНЕЦ НОВОГО БЛОКА ===
+
+                # Извлекаем данные (старая логика)
+                link_text, link_url = extract_youtrack_link(body)
+                # ... остальной код без изменений ...
+
+
+                
                 # Извлекаем данные
                 link_text, link_url = extract_youtrack_link(body)
                 if not link_url:
