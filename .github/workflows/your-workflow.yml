@@ -1,0 +1,28 @@
+name: Keep Repo Active
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # daily
+  workflow_dispatch:
+
+permissions:
+  contents: write  # This grants git push access
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update heartbeat
+        run: echo "Last active: $(date -u)" > .github/heartbeat.txt
+
+      - name: Commit and push
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add .github/heartbeat.txt
+          git commit -m "chore: keep repo active"
+          git push
